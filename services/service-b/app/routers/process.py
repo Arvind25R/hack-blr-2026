@@ -42,14 +42,16 @@ async def process(
         if response.status_code != 200:
             error_detail = response.json().get("detail", "Unknown downstream error")
             duration_ms = round((time.time() - start_time) * 1000, 2)
-            await send_log(trace_id, SERVICE_NAME, "ERROR", error_type="downstream_error", message=error_detail, duration_ms=duration_ms)
+            err_type = "NullPointerException" if "NullPointerException" in error_detail else "downstream_error"
+            await send_log(trace_id, SERVICE_NAME, "ERROR", error_type=err_type, message=error_detail, duration_ms=duration_ms)
             raise HTTPException(status_code=502, detail=f"{SERVICE_NAME} received error from service-c: {error_detail}")
 
         downstream_result = response.json()
         duration_ms = round((time.time() - start_time) * 1000, 2)
 
         status_label = "LATENCY" if duration_ms > 3000 else "SUCCESS"
-        await send_log(trace_id, SERVICE_NAME, status_label, message="processed successfully", duration_ms=duration_ms)
+        message = f"{trace_id}|APICall|{status_label}|timetaken={duration_ms}ms|service-b"
+        await send_log(trace_id, SERVICE_NAME, status_label, message=message, duration_ms=duration_ms)
 
         return {
             "service": SERVICE_NAME,

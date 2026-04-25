@@ -1,7 +1,10 @@
+import logging
 import os
 from typing import Optional
 
 import httpx
+
+logger = logging.getLogger("log_sender")
 
 ADMIN_SERVICE_URL = os.getenv("ADMIN_SERVICE_URL", "http://localhost:8000")
 
@@ -25,6 +28,8 @@ async def send_log(
     }
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            await client.post(f"{ADMIN_SERVICE_URL}/logs/", json=payload)
-    except Exception:
-        pass
+            resp = await client.post(f"{ADMIN_SERVICE_URL}/logs/", json=payload)
+            if resp.status_code != 201:
+                logger.warning(f"Log ingestion returned {resp.status_code}: {resp.text[:100]}")
+    except Exception as exc:
+        logger.debug(f"Failed to send log to {ADMIN_SERVICE_URL}: {exc}")

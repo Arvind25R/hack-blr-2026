@@ -75,6 +75,36 @@ class DockerController(InfraController):
                 action="restart",
                 message=f"Failed to restart {service_name}: {exc}",
             )
+
+    def stop_service(self, service_name: str) -> ActionResult:
+        """Stop a Docker container (simulate service down)."""
+        container = self._get_container(service_name)
+        if container is None:
+            return ActionResult(
+                success=False,
+                service_name=service_name,
+                action="stop",
+                message=f"Container for {service_name} not found",
+            )
+
+        try:
+            container.stop(timeout=5)
+            logger.info(f"Container '{service_name}' stopped successfully")
+            return ActionResult(
+                success=True,
+                service_name=service_name,
+                action="stop",
+                message=f"{service_name} stopped successfully",
+                details=f"Container ID: {container.short_id}",
+            )
+        except APIError as exc:
+            logger.error(f"Failed to stop '{service_name}': {exc}")
+            return ActionResult(
+                success=False,
+                service_name=service_name,
+                action="stop",
+                message=f"Failed to stop {service_name}: {exc}",
+            )
     def scale_service(self, service_name: str, replicas: int) -> ActionResult:
         """
         Scale a service. In plain Docker (non-Swarm), we simulate scaling
@@ -144,4 +174,3 @@ class DockerController(InfraController):
         for service_name in CONTAINER_NAME_MAP:
             statuses.append(self.get_status(service_name))
         return statuses
-    

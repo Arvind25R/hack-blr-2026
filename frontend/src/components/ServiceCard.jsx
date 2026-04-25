@@ -1,18 +1,23 @@
 import { useState } from 'react';
-import { triggerProcess } from '../api/client';
+import { stopService, simulateHighLatency, simulatePythonError } from '../api/client';
 
 export default function ServiceCard({ name, status, replicas, onAction }) {
     const [simulating, setSimulating] = useState(false);
+    const [result, setResult] = useState(null);
     const isUp = status === 'running' || status === 'healthy';
     const displayName = name.replace('service-', 'Service ').toUpperCase();
 
-    const simulate = async (failType) => {
+    const exec = async (label, fn) => {
         setSimulating(true);
+        setResult(null);
         try {
-            await triggerProcess(failType, name);
-            if (onAction) onAction();
-        } catch (e) { /* expected for errors */ }
+            const r = await fn();
+            setResult({ ok: true, text: `${label}: ${r.message || 'Done'}` });
+        } catch (e) {
+            setResult({ ok: false, text: `${label}: ${e.message?.substring(0, 100)}` });
+        }
         setSimulating(false);
+        if (onAction) onAction();
     };
 
     return (
@@ -24,19 +29,22 @@ export default function ServiceCard({ name, status, replicas, onAction }) {
             <p className="text-sm text-slate-400 mb-1">Status: <span className={isUp ? 'text-green-300' : 'text-red-300'}>{status}</span></p>
             <p className="text-sm text-slate-400 mb-4">Replicas: {replicas}</p>
             <div className="flex flex-wrap gap-2">
-                <button disabled={simulating} onClick={() => simulate('error')}
+                <button disabled={simulating} onClick={() => exec('Service Down', () => stopService(name))}
                     className="px-3 py-1 text-xs rounded bg-red-600 hover:bg-red-700 text-white disabled:opacity-50">
-                    Simulate Error
+                    ⛔ Service Down
                 </button>
-                <button disabled={simulating} onClick={() => simulate('timeout')}
-                    className="px-3 py-1 text-xs rounded bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-50">
-                    Simulate Timeout
-                </button>
-                <button disabled={simulating} onClick={() => simulate('high_latency')}
+                <button disabled={simulating} onClick={() => exec('High Latency', () => simulateHighLatency(name))}
                     className="px-3 py-1 text-xs rounded bg-yellow-600 hover:bg-yellow-700 text-white disabled:opacity-50">
-                    High Latency
+                    🐌 High Latency
+                </button>
+                <button disabled={simulating} onClick={() => exec('Python Error', () => simulatePythonError(name))}
+                    className="px-3 py-1 text-xs rounded bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50">
+                    🐛 Python Error
                 </button>
             </div>
+            {result && (
+                <p className={`text-xs mt-2 ${result.ok ? 'text-green-400' : 'text-red-400'}`}>{result.text}</p>
+            )}
         </div>
     );
 }

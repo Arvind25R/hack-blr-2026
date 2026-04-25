@@ -8,10 +8,19 @@ services:
       - "8000:8000"
     env_file:
       - .env
-    networks:
-      - devops-net
+    environment:
+      - SERVICE_A_URL=http://service-a:8001
+      - SERVICE_B_URL=http://service-b:8002
+      - SERVICE_C_URL=http://service-c:8003
+      - ADMIN_SERVICE_URL=http://admin-service:8000
+      - QDRANT_HOST=qdrant
     volumes:
       - admin-data:/app/data
+      - //var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - devops-net
+    depends_on:
+      - qdrant
 
   service-a:
     build: ./services/service-a
@@ -20,6 +29,9 @@ services:
       - "8001:8001"
     env_file:
       - .env
+    environment:
+      - SERVICE_B_URL=http://service-b:8002
+      - ADMIN_SERVICE_URL=http://admin-service:8000
     depends_on:
       - admin-service
     networks:
@@ -32,6 +44,9 @@ services:
       - "8002:8002"
     env_file:
       - .env
+    environment:
+      - SERVICE_C_URL=http://service-c:8003
+      - ADMIN_SERVICE_URL=http://admin-service:8000
     depends_on:
       - admin-service
     networks:
@@ -44,6 +59,8 @@ services:
       - "8003:8003"
     env_file:
       - .env
+    environment:
+      - ADMIN_SERVICE_URL=http://admin-service:8000
     depends_on:
       - admin-service
     networks:
@@ -66,5 +83,3 @@ networks:
 volumes:
   admin-data:
   qdrant-data:
-
-  

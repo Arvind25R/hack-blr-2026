@@ -16,6 +16,7 @@ logger = logging.getLogger("vapi_service")
 
 VAPI_API_KEY = os.getenv("VAPI_API_KEY", "")
 VAPI_PHONE_NUMBER = os.getenv("VAPI_PHONE_NUMBER", "")
+VAPI_PHONE_NUMBER_ID = os.getenv("VAPI_PHONE_NUMBER_ID", "")
 VAPI_ASSISTANT_ID = os.getenv("VAPI_ASSISTANT_ID", "")
 ADMIN_SERVICE_URL = os.getenv("ADMIN_SERVICE_URL", "http://localhost:8000")
 NGROK_URL = os.getenv("NGROK_URL", "")
@@ -54,42 +55,20 @@ async def trigger_voice_call(
             "fallback_url": f"{ADMIN_SERVICE_URL}/approval/approve/{incident_id}",
         }
 
-    # Build the message for the voice assistant
-    callback_url = NGROK_URL or ADMIN_SERVICE_URL
-    message = (
-        f"Alert: Incident detected on {service_name}. "
-        f"Issue: {error_summary[:200]}. "
-        f"Suggested action: {suggested_solution[:200]}. "
-        f"Do you approve this action?"
-    )
-
     payload = {
         "assistantId": VAPI_ASSISTANT_ID,
+        "phoneNumberId": VAPI_PHONE_NUMBER_ID,
         "customer": {
             "number": VAPI_PHONE_NUMBER,
         },
         "assistantOverrides": {
-            "firstMessage": message,
-            "model": {
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            f"You are a DevOps incident notification assistant. "
-                            f"An incident #{incident_id} has been detected on {service_name}. "
-                            f"Error: {error_summary[:300]}. "
-                            f"Suggested fix: {suggested_solution[:300]}. "
-                            f"Ask the user if they approve this action. "
-                            f"If they say yes/approve/go ahead, call the approve function. "
-                            f"If they say no/reject/deny, call the reject function."
-                        ),
-                    }
-                ],
-            },
-            "serverUrl": f"{callback_url}/approval/vapi-webhook",
-        },
+            "variableValues": {
+                "service_name": service_name,
+                "resolution_steps": suggested_solution
+            }
+        }
     }
-
+    
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(

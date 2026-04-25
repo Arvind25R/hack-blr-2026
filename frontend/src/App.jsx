@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { usePolling } from './hooks/usePolling';
-import { getAllStatuses, getLogs, getIncidents } from './api/client';
+import { getAllStatuses, getLogs, getIncidents, getLogStats } from './api/client';
 import ServiceCard from './components/ServiceCard';
 import TrafficMetrics from './components/TrafficMetrics';
 import IncidentTimeline from './components/IncidentTimeline';
@@ -11,17 +11,20 @@ const SERVICES = ['service-a', 'service-b', 'service-c'];
 
 export default function App() {
     const fetchStatuses = useCallback(() => getAllStatuses(), []);
-    const fetchLogs = useCallback(() => getLogs('limit=100'), []);
-    const fetchIncidents = useCallback(() => getIncidents('limit=50'), []);
+    const fetchLogs = useCallback(() => getLogs('limit=30'), []);
+    const fetchIncidents = useCallback(() => getIncidents('limit=5'), []);
+    const fetchStats = useCallback(() => getLogStats(), []);
 
     const statuses = usePolling(fetchStatuses, 5000);
     const logs = usePolling(fetchLogs, 4000);
     const incidents = usePolling(fetchIncidents, 5000);
+    const stats = usePolling(fetchStats, 5000);
 
     const refreshAll = () => {
         statuses.refresh();
         logs.refresh();
         incidents.refresh();
+        stats.refresh();
     };
 
     const getStatus = (name) => {
@@ -60,7 +63,7 @@ export default function App() {
                 {/* Traffic Metrics */}
                 <section>
                     <h2 className="text-lg font-semibold text-white mb-3">Traffic Metrics</h2>
-                    <TrafficMetrics logs={logs.data} />
+                    <TrafficMetrics stats={stats.data} />
                 </section>
 
                 {/* Action Panel */}
@@ -74,7 +77,9 @@ export default function App() {
                     <h2 className="text-lg font-semibold text-white mb-3">
                         Incidents {incidents.data?.length > 0 && <span className="text-sm text-red-400">({incidents.data.length})</span>}
                     </h2>
-                    <IncidentTimeline incidents={incidents.data} onAction={refreshAll} />
+                    <div className="max-h-[400px] overflow-y-auto pr-1">
+                        <IncidentTimeline incidents={incidents.data} onAction={refreshAll} />
+                    </div>
                 </section>
 
                 {/* Logs */}

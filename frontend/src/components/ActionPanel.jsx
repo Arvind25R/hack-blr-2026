@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { restartService, scaleService, triggerProcess } from '../api/client';
+import { restartService, scaleService } from '../api/client';
 
 export default function ActionPanel({ onAction }) {
     const [result, setResult] = useState(null);
@@ -10,9 +10,9 @@ export default function ActionPanel({ onAction }) {
         setResult(null);
         try {
             const r = await fn();
-            setResult({ ok: true, text: `${label}: ${JSON.stringify(r).substring(0, 200)}` });
+            setResult({ ok: true, text: `${label}: ${r.message || JSON.stringify(r).substring(0, 150)}` });
         } catch (e) {
-            setResult({ ok: false, text: `${label}: ${e.message?.substring(0, 200)}` });
+            setResult({ ok: false, text: `${label}: ${e.message?.substring(0, 150)}` });
         }
         setLoading(false);
         if (onAction) onAction();
@@ -20,20 +20,6 @@ export default function ActionPanel({ onAction }) {
 
     return (
         <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-                <button disabled={loading} onClick={() => exec('Normal Request', () => triggerProcess())}
-                    className="px-3 py-2 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50">
-                    🚀 Send Normal Request
-                </button>
-                <button disabled={loading} onClick={() => exec('Burst Errors', async () => { for (let i = 0; i < 4; i++) { await triggerProcess('error', 'service-c').catch(() => { }); } return { sent: 4 }; })}
-                    className="px-3 py-2 text-sm rounded bg-red-600 hover:bg-red-700 text-white disabled:opacity-50">
-                    💥 Burst 4 Errors (C)
-                </button>
-                <button disabled={loading} onClick={() => exec('Latency Burst', async () => { for (let i = 0; i < 3; i++) { await triggerProcess('high_latency', 'service-c'); } return { sent: 3 }; })}
-                    className="px-3 py-2 text-sm rounded bg-yellow-600 hover:bg-yellow-700 text-white disabled:opacity-50">
-                    🐌 Burst Latency (C)
-                </button>
-            </div>
             <div className="flex flex-wrap gap-2">
                 {['service-a', 'service-b', 'service-c'].map(s => (
                     <button key={s} disabled={loading} onClick={() => exec(`Restart ${s}`, () => restartService(s))}
@@ -43,7 +29,7 @@ export default function ActionPanel({ onAction }) {
                 ))}
                 {['service-a', 'service-b', 'service-c'].map(s => (
                     <button key={`scale-${s}`} disabled={loading} onClick={() => exec(`Scale ${s}`, () => scaleService(s, 3))}
-                        className="px-3 py-1.5 text-xs rounded bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50">
+                        className="px-3 py-1.5 text-xs rounded bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50">
                         ⬆️ Scale {s}
                     </button>
                 ))}

@@ -27,7 +27,8 @@ async def process(
         duration_ms = round((time.time() - start_time) * 1000, 2)
 
         status_label = "LATENCY" if duration_ms > 3000 else "SUCCESS"
-        await send_log(trace_id, SERVICE_NAME, status_label, message="processed successfully", duration_ms=duration_ms)
+        message = f"{trace_id}|APICall|{status_label}|timetaken={duration_ms}ms|service-c"
+        await send_log(trace_id, SERVICE_NAME, status_label, message=message, duration_ms=duration_ms)
 
         return {
             "service": SERVICE_NAME,
@@ -38,7 +39,12 @@ async def process(
         }
     except HTTPException as exc:
         duration_ms = round((time.time() - start_time) * 1000, 2)
-        error_type = "timeout" if exc.status_code == 504 else "internal_error"
+        if "NullPointerException" in (exc.detail or ""):
+            error_type = "NullPointerException"
+        elif exc.status_code == 504:
+            error_type = "timeout"
+        else:
+            error_type = "internal_error"
         await send_log(trace_id, SERVICE_NAME, "ERROR", error_type=error_type, message=exc.detail, duration_ms=duration_ms)
         raise
     except Exception as exc:

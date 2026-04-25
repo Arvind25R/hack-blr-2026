@@ -27,6 +27,12 @@ async def simulate_failure(fail: Optional[str], service_name: str) -> None:
         await asyncio.sleep(5)
         return
 
+    if fail == "npe":
+        raise HTTPException(
+            status_code=500,
+            detail=f"NullPointerException: {service_name} — object reference is null at processRequest()",
+        )
+
     raise HTTPException(
         status_code=400,
         detail=f"Unknown failure mode: {fail}",

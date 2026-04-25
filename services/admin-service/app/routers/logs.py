@@ -1,7 +1,8 @@
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from app.models.database import get_db
@@ -43,3 +44,30 @@ def get_logs(
     if status:
         query = query.filter(Log.status == status)
     return query.order_by(desc(Log.timestamp)).limit(limit).all()
+
+
+@router.get("/stats")
+def get_log_stats(db: Session = Depends(get_db)) -> dict:
+    """Return aggregate stats from entire DB for traffic metrics."""
+    import os
+
+    latency_threshold = float(os.getenv("LATENCY_THRESHOLD_MS", "3000"))
+    exception_threshold = int(os.getenv("EXCEPTION_THRESHOLD", "3"))
+
+    total = db.query(func.count(Log.id)).scalar() or 0
+    success = db.query(func.count(Log.id)).filter(Log.status == "SUCCESS").scalar() or 0
+    errors = db.query(func.count(Log.id)).filter(Log.status == "ERROR").scalar() or 0
+    latency = db.query(func.count(Log.id)).filter(Log.status == "LATENCY").scalar() or 0
+
+    avg_dur = db.query(func.avg(Log.duration_ms)).filter(Log.duration_ms.isnot(None)).scalar()
+    avg_duration = round(avg_dur, 1) if avg_dur else 0
+
+    return {
+        "total": total,
+        "success": success,
+        "errors": errors,
+        "latency": latency,
+        "avg_duration": avg_duration,
+        "latency_threshold_ms": latency_threshold,
+        "exception_threshold": exception_threshold,
+    }

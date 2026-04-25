@@ -1,20 +1,18 @@
-export default function TrafficMetrics({ logs }) {
-    if (!logs || logs.length === 0) return null;
+export default function TrafficMetrics({ stats }) {
+    if (!stats) return null;
 
-    const total = logs.length;
-    const errors = logs.filter(l => l.status === 'ERROR').length;
-    const success = logs.filter(l => l.status === 'SUCCESS').length;
-    const latency = logs.filter(l => l.status === 'LATENCY').length;
-    const avgDuration = logs.filter(l => l.duration_ms > 0).reduce((sum, l) => sum + l.duration_ms, 0) / (logs.filter(l => l.duration_ms > 0).length || 1);
+    const { total, success, errors, latency, avg_duration, latency_threshold_ms, exception_threshold } = stats;
     const errorRate = total > 0 ? ((errors / total) * 100).toFixed(1) : 0;
+    const isHighLatency = avg_duration >= latency_threshold_ms;
+    const isHighErrorRate = errors >= exception_threshold;
 
     const metrics = [
         { label: 'Total Requests', value: total, color: 'text-blue-400' },
         { label: 'Success', value: success, color: 'text-green-400' },
-        { label: 'Errors', value: errors, color: 'text-red-400' },
-        { label: 'Latency Issues', value: latency, color: 'text-yellow-400' },
-        { label: 'Avg Duration', value: `${avgDuration.toFixed(0)}ms`, color: 'text-purple-400' },
-        { label: 'Error Rate', value: `${errorRate}%`, color: errorRate > 50 ? 'text-red-400' : 'text-green-400' },
+        { label: 'Errors', value: errors, color: errors > 0 ? 'text-red-400' : 'text-green-400', sub: `threshold: ${exception_threshold}` },
+        { label: 'Latency Issues', value: latency, color: latency > 0 ? 'text-yellow-400' : 'text-green-400' },
+        { label: 'Avg Duration', value: `${avg_duration}ms`, color: isHighLatency ? 'text-red-400' : 'text-purple-400', sub: `threshold: ${latency_threshold_ms}ms` },
+        { label: 'Error Rate', value: `${errorRate}%`, color: isHighErrorRate ? 'text-red-400' : 'text-green-400' },
     ];
 
     return (
@@ -23,6 +21,7 @@ export default function TrafficMetrics({ logs }) {
                 <div key={m.label} className="bg-slate-800/50 rounded-lg p-3 text-center border border-slate-700">
                     <p className={`text-xl font-bold ${m.color}`}>{m.value}</p>
                     <p className="text-xs text-slate-500">{m.label}</p>
+                    {m.sub && <p className="text-[10px] text-slate-600 mt-0.5">{m.sub}</p>}
                 </div>
             ))}
         </div>

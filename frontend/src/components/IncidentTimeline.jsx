@@ -48,17 +48,9 @@ export default function IncidentTimeline({ incidents, onAction }) {
                     )}
                     <div className="flex items-center justify-between">
                         <span className="text-xs text-slate-500">{new Date(inc.created_at).toLocaleString()}</span>
-                        {!['RESOLVED', 'REJECTED'].includes(inc.status) && (
-                            <div className="flex gap-2">
-                                <button disabled={acting === inc.id} onClick={() => handle(inc.id, 'approve')}
-                                    className="px-3 py-1 text-xs rounded bg-green-600 hover:bg-green-700 text-white disabled:opacity-50">
-                                    Approve
-                                </button>
-                                <button disabled={acting === inc.id} onClick={() => handle(inc.id, 'reject')}
-                                    className="px-3 py-1 text-xs rounded bg-red-600 hover:bg-red-700 text-white disabled:opacity-50">
-                                    Reject
-                                </button>
-                            </div>
+
+                        {inc.error_summary?.includes('APP_NPE_003') && !['RESOLVED', 'REJECTED'].includes(inc.status) && (
+                            <span className="text-xs text-yellow-400 italic">⚠️ App bug — no infra action</span>
                         )}
                     </div>
                 </div>

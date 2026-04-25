@@ -11,6 +11,7 @@ from app.routers.incidents import router as incidents_router
 from app.routers.infra import router as infra_router
 from app.routers.logs import router as logs_router
 from app.routers.qdrant import router as qdrant_router
+from app.routers.mcp import router as mcp_router
 from app.services.watchdog import watchdog_loop
 
 logging.basicConfig(level=logging.INFO)
@@ -31,6 +32,7 @@ app.include_router(qdrant_router)
 app.include_router(infra_router)
 app.include_router(approval_router)
 app.include_router(audit_router)
+app.include_router(mcp_router)
 
 
 @app.on_event("startup")

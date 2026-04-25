@@ -54,21 +54,29 @@ def _log_audit(db: Session, incident_id: int, action: str, approved_by: str, det
     db.commit()
 
 
-def _extract_action_type(suggested_solution: Optional[str]) -> str:
-    """Extract action_type from the suggested_solution string."""
-    if not suggested_solution:
-        return "none"
-    lower = suggested_solution.lower()
-    if "[action: restart]" in lower:
+def _extract_action_type(incident: Incident) -> str:
+    """Extract action_type from suggested_solution or fall back to error_summary issue code."""
+    sol = (incident.suggested_solution or "").lower()
+    if "[action: restart]" in sol:
         return "restart"
-    if "[action: scale]" in lower:
+    if "[action: scale]" in sol:
         return "scale"
+
+    # Fallback: derive action from the issue code in error_summary
+    summary = (incident.error_summary or "").upper()
+    if "SVC_DOWN_001" in summary:
+        return "restart"
+    if "SVC_LATENCY_002" in summary:
+        return "scale"
+    if "APP_NPE_003" in summary:
+        return "none"
+
     return "none"
 
 
 def _execute_remediation(incident: Incident, db: Session) -> tuple[str, str]:
     """Execute the remediation action based on the incident's suggested solution."""
-    action_type = _extract_action_type(incident.suggested_solution)
+    action_type = _extract_action_type(incident)
 
     if action_type == "restart":
         result = _controller.restart_service(incident.service_name)
@@ -79,8 +87,6 @@ def _execute_remediation(incident: Incident, db: Session) -> tuple[str, str]:
         return "scale", f"success={result.success} | {result.message}"
 
     return "none", "No infrastructure action required — manual intervention suggested"
-
-
 @router.post("/approve/{incident_id}", response_model=ApprovalResponse)
 def approve_incident(
     incident_id: int,
@@ -98,15 +104,6 @@ def approve_incident(
 
     # Transition: → APPROVED
     incident.status = "APPROVED"
-    incident.updated_at = datetime.utcnow()
-    db.commit()
-
-    _log_audit(db, incident_id, "approved", approved_by, f"Incident approved via fallback API")
-
-    # Execute remediation → ACTION_TAKEN
-    action_type, action_result = _execute_remediation(incident, db)
-
-    incident.status = "ACTION_TAKEN"
     incident.updated_at = datetime.utcnow()
     db.commit()
 
@@ -191,6 +188,7 @@ async def notify_via_vapi(
         "incident_id": incident_id,
         "notification": result,
     }
+
 
 @router.post("/vapi-webhook")
 async def vapi_webhook(request: Request, db: Session = Depends(get_db)) -> dict:
