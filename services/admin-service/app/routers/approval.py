@@ -162,6 +162,33 @@ def reject_incident(
     }
 
 
+@router.post("/resolve/{incident_id}", response_model=ApprovalResponse)
+def resolve_incident(
+    incident_id: int,
+    resolved_by: str = "operator",
+    db: Session = Depends(get_db),
+) -> dict:
+    """Manually resolve an incident (e.g. after a call transfer)."""
+    incident = _get_incident(db, incident_id)
+
+    if incident.status == "RESOLVED":
+        raise HTTPException(status_code=400, detail="Incident already RESOLVED")
+
+    incident.status = "RESOLVED"
+    incident.updated_at = datetime.utcnow()
+    db.commit()
+
+    _log_audit(db, incident_id, "resolved", resolved_by, "Incident resolved manually by operator")
+
+    return {
+        "incident_id": incident_id,
+        "status": "RESOLVED",
+        "action_taken": None,
+        "action_result": "Manual Resolution",
+        "message": f"Incident #{incident_id} resolved manually",
+    }
+
+
 @router.post("/notify/{incident_id}")
 async def notify_via_vapi(
     incident_id: int,

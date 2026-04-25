@@ -23,6 +23,10 @@ Environment variables (optional):
 """
 
 import os
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
 
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, PointStruct, VectorParams
@@ -173,7 +177,7 @@ RUNBOOKS: list[dict] = [
     {
         "error_pattern": "logic error business rule violation data corruption invalid state unexpected behavior",
         "root_cause": "Application logic error — the service is producing incorrect results due to a bug in business logic.",
-        "recommended_fix": "This requires a code fix by the development team. Do NOT restart or scale — the bug will persist. Contact the on-call developer.",
+        "recommended_fix": "Contact the on-call developer.",
         "action_type": "none",
         "applicable_services": "service-a, service-b, service-c",
         "severity": "medium",
@@ -181,24 +185,25 @@ RUNBOOKS: list[dict] = [
     {
         "error_pattern": "authentication authorization 401 403 forbidden unauthorized token expired permission denied",
         "root_cause": "Authentication or authorization failure. Could be expired credentials, misconfigured tokens, or permission changes.",
-        "recommended_fix": "Check and rotate API keys/tokens. Verify service account permissions. This is not an infrastructure issue — contact the security team.",
+        "recommended_fix": "Verify service account permissions. Contact the security team.",
+        "action_type": "none",
+        "applicable_services": "service-a, service-b, service-c",
+        "severity": "medium",
+    },
+    {
+        "error_pattern": "deadlock database slow SQL queries long running transactions",
+        "root_cause": "The database is experiencing deadlocks or slow queries, likely due to inefficient queries or long-running transactions.",
+        "recommended_fix": "Temporarily scale down to ease the load on the database or Contact the database team.",
         "action_type": "none",
         "applicable_services": "service-a, service-b, service-c",
         "severity": "medium",
     },
 ]
 
-def main() -> None:
-    if QDRANT_URL and QDRANT_API_KEY:
-        print(f"Connecting to Qdrant Cloud: {QDRANT_URL}...")
-        client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
-    else:
-        print(f"Connecting to local Qdrant at {QDRANT_HOST}:{QDRANT_PORT}...")
-        client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
-
-    print(f"Loading embedding model '{EMBEDDING_MODEL}'...")
-    model = SentenceTransformer(EMBEDDING_MODEL)
-
+def seed_instance(client: QdrantClient, model: SentenceTransformer, label: str) -> None:
+    """Seed a specific Qdrant instance (Cloud or Local)."""
+    print(f"\n--- Seeding {label} ---")
+    
     # Recreate collection (idempotent — safe to re-run)
     collections = [c.name for c in client.get_collections().collections]
     if COLLECTION_NAME in collections:
@@ -240,27 +245,40 @@ def main() -> None:
 
     # Verify
     collection_info = client.get_collection(COLLECTION_NAME)
-    print(f"\n✅ Seeding complete!")
+    print(f"Seeding complete for {label}!")
     print(f"   Collection : {COLLECTION_NAME}")
     print(f"   Points     : {collection_info.points_count}")
-    print(f"   Vector size: {VECTOR_SIZE}")
-    print(f"   Distance   : COSINE")
-    print(f"   Model      : {EMBEDDING_MODEL}")
+
+
+def main() -> None:
+    print(f"Loading embedding model '{EMBEDDING_MODEL}'...")
+    model = SentenceTransformer(EMBEDDING_MODEL)
+
+    # 1. Seed Cloud if configured
+    if QDRANT_URL and QDRANT_API_KEY:
+        print(f"\nConnecting to Qdrant Cloud: {QDRANT_URL}...")
+        cloud_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+        seed_instance(cloud_client, model, "QDRANT CLOUD")
+
+    # 2. Seed Local Docker
+    print(f"\nConnecting to local Qdrant at {QDRANT_HOST}:{QDRANT_PORT}...")
+    local_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
+    seed_instance(local_client, model, "LOCAL DOCKER")
 
     # Quick test queries
-    test_queries = [
-        "service-c is down connection refused",
-        "High error rate detected 100% requests failed internal_error",
-        "Latency spike detected avg response time 5000ms slow",
-        "logic error business rule violation unexpected behavior",
-    ]
-    for query in test_queries:
-        print(f"\n--- Test: '{query}' ---")
-        qv = model.encode(query).tolist()
-        results = client.search(collection_name=COLLECTION_NAME, query_vector=qv, limit=2)
-        for hit in results:
-            print(f"  Score: {hit.score:.4f} | Action: {hit.payload['action_type']}")
-            print(f"  Fix  : {hit.payload['recommended_fix'][:100]}")
+    # test_queries = [
+    #     "service-c is down connection refused",
+    #     "High error rate detected 100% requests failed internal_error",
+    #     "Latency spike detected avg response time 5000ms slow",
+    #     "logic error business rule violation unexpected behavior",
+    # ]
+    # for query in test_queries:
+    #     print(f"\n--- Test: '{query}' ---")
+    #     qv = model.encode(query).tolist()
+    #     results = client.search(collection_name=COLLECTION_NAME, query_vector=qv, limit=2)
+    #     for hit in results:
+    #         print(f"  Score: {hit.score:.4f} | Action: {hit.payload['action_type']}")
+    #         print(f"  Fix  : {hit.payload['recommended_fix'][:100]}")
 
 
 if __name__ == "__main__":
