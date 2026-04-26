@@ -97,7 +97,7 @@ RUNBOOKS: list[dict] = [
     {
         "error_pattern": "timeout timed out 504 gateway timeout downstream timed out request took too long",
         "root_cause": "The downstream service is taking too long to respond, exceeding the configured timeout threshold.",
-        "recommended_fix": "Scale up the slow service to handle more concurrent requests. If scaling doesn't help, restart it to clear potential deadlocks.",
+        "recommended_fix": "Scale up the slow service to handle more concurrent requests.",
         "action_type": "scale",
         "applicable_services": "service-a, service-b, service-c",
         "severity": "high",
@@ -114,7 +114,7 @@ RUNBOOKS: list[dict] = [
     {
         "error_pattern": "high latency slow response time degraded performance resource exhaustion CPU memory",
         "root_cause": "Resource exhaustion (CPU/memory) on the service container, or the service is blocking on a slow external dependency.",
-        "recommended_fix": "Scale the service horizontally to distribute load. If a single instance is slow, restart it to reclaim leaked resources.",
+        "recommended_fix": "Scale the service horizontally to distribute load.",
         "action_type": "scale",
         "applicable_services": "service-a, service-b, service-c",
         "severity": "medium",

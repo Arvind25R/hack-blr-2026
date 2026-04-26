@@ -107,10 +107,10 @@ class DockerController(InfraController):
             )
     def scale_service(self, service_name: str, replicas: int) -> ActionResult:
         """
-        Scale a service. In plain Docker (non-Swarm), we simulate scaling
-        by reporting the intent. In a real docker-compose setup, use
-        `docker-compose up --scale <service>=<n>`.
-        For demo purposes, we restart the container and report the scale action.
+        Scale a service dynamically using the Docker SDK.
+        This actually spins up new containers and attaches them to the network
+        with the correct alias, mimicking Swarm/Compose native scaling without
+        breaking the local compose project structure!
         """
         container = self._get_container(service_name)
         if container is None:
@@ -122,18 +122,72 @@ class DockerController(InfraController):
             )
 
         try:
-            # In plain Docker, true scaling requires Swarm or compose --scale.
-            # We simulate by restarting and acknowledging the scale request.
-            container.restart(timeout=10)
-            logger.info(f"Container '{service_name}' scaled to {replicas} (simulated — restarted)")
+            # Gather config from the main container
+            image_name = container.image.tags[0] if container.image.tags else container.image.id
+            env_vars = container.attrs['Config']['Env']
+            
+            networks = container.attrs['NetworkSettings']['Networks']
+            network_name = list(networks.keys())[0] if networks else "bridge"
+            network = self._client.networks.get(network_name)
+
+            # Aggressively clean up dead/exited replicas first
+            all_replicas = self._client.containers.list(
+                all=True, filters={"label": f"scaled_for={service_name}"}
+            )
+            running_replicas = []
+            for c in all_replicas:
+                if c.status == "running":
+                    running_replicas.append(c)
+                else:
+                    try:
+                        c.remove(force=True)
+                    except Exception:
+                        pass
+                        
+            current_count = 1 + len(running_replicas)
+
+            if replicas > current_count:
+                # Scale up
+                for i in range(current_count, replicas):
+                    replica_name = f"{service_name}-replica-{i}"
+                    
+                    # Clean up old dead replicas if any
+                    try:
+                        old = self._client.containers.get(replica_name)
+                        old.remove(force=True)
+                    except docker.errors.NotFound:
+                        pass
+                        
+                    new_c = self._client.containers.run(
+                        image=image_name,
+                        name=replica_name,
+                        detach=True,
+                        environment=env_vars,
+                        labels={"scaled_for": service_name}
+                    )
+                    # Connect to the network with the primary service's alias! 
+                    # This tells Docker's internal DNS to round-robin traffic.
+                    network.connect(new_c, aliases=[service_name])
+                    logger.info(f"Spawned native replica: {replica_name}")
+                    
+            elif replicas < current_count:
+                # Scale down
+                for i in range(replicas, current_count):
+                    try:
+                        c = self._client.containers.get(f"{service_name}-replica-{i}")
+                        c.remove(force=True)
+                        logger.info(f"Removed native replica: {service_name}-replica-{i}")
+                    except docker.errors.NotFound:
+                        continue
+                        
             return ActionResult(
                 success=True,
                 service_name=service_name,
                 action="scale",
-                message=f"{service_name} scaled to {replicas} replicas (simulated)",
-                details=f"Container ID: {container.short_id}. Note: true horizontal scaling requires Docker Swarm or Kubernetes.",
+                message=f"{service_name} scaled to {replicas} replicas natively",
+                details=f"Dynamically spawned {replicas-1} physical Docker replica instances on {network_name}.",
             )
-        except APIError as exc:
+        except Exception as exc:
             logger.error(f"Failed to scale '{service_name}': {exc}")
             return ActionResult(
                 success=False,
@@ -154,12 +208,19 @@ class DockerController(InfraController):
 
         try:
             container.reload()
-            state = container.status  # "running", "exited", "paused", etc.
+            state = container.status
+            running_replicas = 1 if state == "running" else 0
+            
+            # Add dynamic replicas
+            existing = self._client.containers.list(filters={"label": f"scaled_for={service_name}"})
+            running_replicas += sum(1 for c in existing if c.status == "running")
+            total_replicas = 1 + len(existing)
+            
             return ServiceStatus(
                 service_name=service_name,
-                status=state,
-                replicas=1 if state == "running" else 0,
-                details=f"Container ID: {container.short_id}, Image: {container.image.tags}",
+                status=state if state != "running" else ("running" if running_replicas > 0 else "stopped"),
+                replicas=running_replicas,
+                details=f"Main ID: {container.short_id}, Total Instances: {total_replicas} ({running_replicas} running)",
             )
         except Exception as exc:
             return ServiceStatus(

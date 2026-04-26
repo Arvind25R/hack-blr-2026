@@ -20,7 +20,7 @@ EXCEPTION_THRESHOLD = int(os.getenv("EXCEPTION_THRESHOLD", "3"))
 POLL_INTERVAL_SECONDS = int(os.getenv("WATCHDOG_POLL_INTERVAL", "10"))
 WINDOW_SECONDS = int(os.getenv("WATCHDOG_WINDOW_SECONDS", "60"))
 VAPI_RETRY_SECONDS = int(os.getenv("VAPI_RETRY_SECONDS", "120"))  # re-call Vapi if still down after this
-MIN_LOGS_FOR_DETECTION = 2
+MIN_LOGS_FOR_DETECTION = 1
 
 # ─── Service URLs for health checks ─────────────────────────────
 SERVICE_URLS = {
@@ -167,8 +167,8 @@ def _detect_high_latency(db: Session, service_name: str, logs: list[Log]) -> Opt
     avg_duration = sum(l.duration_ms for l in high_latency_logs) / len(high_latency_logs)
     summary = (
         f"[{ISSUE_CODES['high_latency']}] High latency detected on {service_name}: "
-        f"{len(high_latency_logs)} requests above {LATENCY_THRESHOLD_MS}ms threshold "
-        f"(avg {avg_duration:.0f}ms) in last {WINDOW_SECONDS}s. Consider scaling up."
+        f"{len(high_latency_logs)} requests are above the threshold."
+        f"Consider scaling up."
     )
     return _create_incident(
         db, service_name, severity="medium", error_summary=summary,

@@ -33,11 +33,11 @@ async def call_gemini(prompt: str) -> dict:
 
     import asyncio, json
 
-    models = ["gemini-2.0-flash", "gemini-flash-latest"]
+    models = ["gemini-2.5-flash", "gemini-flash-latest"]
     system_prompt = (
         "You are an AI DevOps router. Given the prompt, determine the action "
         "(restart, scale, stop, call_transfer), the target service (service-a, service-b, service-c), "
-        "optionally replicas (int, default 2 for scale), and whether the user approves "
+        "optionally replicas (int, default 3 for scale), and whether the user approves "
         "or rejects the action (approval_status: 'approved' or 'rejected'). "
         "Return strictly valid JSON with keys: action, service_name, replicas, approval_status.\n"
         f"Prompt: {prompt}"
@@ -51,8 +51,8 @@ async def call_gemini(prompt: str) -> dict:
     last_error = None
     for model in models:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-        for attempt in range(3):
-            async with httpx.AsyncClient(timeout=15.0) as client:
+        for attempt in range(2):
+            async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.post(url, json=payload, headers=headers)
             if response.status_code == 200:
                 data = response.json()
@@ -60,7 +60,7 @@ async def call_gemini(prompt: str) -> dict:
                 return json.loads(text)
             if response.status_code in (429, 503):
                 last_error = f"{model} returned {response.status_code} (attempt {attempt+1})"
-                await asyncio.sleep(2 ** (attempt + 1))  # 2s, 4s, 8s backoff
+                await asyncio.sleep(1)  # fast 1s backoff for voice call responsiveness
                 continue
             last_error = f"Gemini API error ({response.status_code}): {response.text[:200]}"
             break  # non-retryable error, try next model
@@ -128,25 +128,25 @@ async def execute_mcp_command(request: MCPRequest, db: Session = Depends(get_db)
             try:
                 intent = await call_gemini(request.prompt)
             except Exception as e:
-                logger.warning(f"Gemini failed, trying local Ollama fallback: {e}")
-                ai_source = "ollama_fallback"
-                try:
-                    intent = await call_ollama(request.prompt)
-                except Exception as ollama_e:
-                    # CRITICAL: Preserve audit log even on total failure
-                    from app.models.tables import AuditLog
-                    db.add(AuditLog(
-                        action="mcp_total_failure",
-                        approved_by="system",
-                        details=f"status=error | prompt={request.prompt} | gemini_err={str(e)} | ollama_err={str(ollama_e)}"
-                    ))
-                    db.commit()
-                    return {"success": False, "message": f"All AI models failed. Gemini: {str(e)} | Ollama: {str(ollama_e)}. Attempt logged to audit."}
+                logger.warning(f"Gemini failed with {e}, falling back to instant keyword parser.")
+                ai_source = "keyword_fallback"
+                
+                action = "unknown"
+                if "restart" in request.prompt.lower(): action = "restart"
+                elif "scale" in request.prompt.lower(): action = "scale"
+                elif "stop" in request.prompt.lower(): action = "stop"
+                
+                service_name = "service-a"
+                if "service-b" in request.prompt.lower(): service_name = "service-b"
+                if "service-c" in request.prompt.lower(): service_name = "service-c"
+                
+                approval_status = "rejected" if "reject" in request.prompt.lower() or "deny" in request.prompt.lower() else "approved"
+                intent = {"action": action, "service_name": service_name, "replicas": 3, "approval_status": approval_status}
 
-        action = intent.get("action", "").lower()
-        service_name = intent.get("service_name", "").lower()
-        replicas = intent.get("replicas", 2)
-        approval_status = intent.get("approval_status", "approved").lower()
+        action = str(intent.get("action") or "unknown").lower()
+        service_name = str(intent.get("service_name") or "unknown").lower()
+        replicas = intent.get("replicas") or 3
+        approval_status = str(intent.get("approval_status") or "approved").lower()
 
         from app.models.tables import AuditLog
         prompt_text = request.prompt

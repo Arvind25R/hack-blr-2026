@@ -20,6 +20,11 @@ export default function ServiceCard({ name, status, replicas, onAction }) {
         if (onAction) onAction();
     };
 
+    let errorLabel = "Python Error";
+    if (name === "service-a") errorLabel = "Business Err.";
+    if (name === "service-b") errorLabel = "Auth error";
+    if (name === "service-c") errorLabel = "DB Deadlock";
+
     return (
         <div className={`rounded-xl border-2 p-5 ${isUp ? 'border-green-500 bg-green-500/10' : 'border-red-500 bg-red-500/10'}`}>
             <div className="flex items-center justify-between mb-3">
@@ -37,9 +42,9 @@ export default function ServiceCard({ name, status, replicas, onAction }) {
                     className="px-3 py-1 text-xs rounded bg-yellow-600 hover:bg-yellow-700 text-white disabled:opacity-50">
                     🐌 High Latency
                 </button>
-                <button disabled={simulating} onClick={() => exec('Python Error', () => simulatePythonError(name))}
+                <button disabled={simulating} onClick={() => exec(errorLabel, () => simulatePythonError(name))}
                     className="px-3 py-1 text-xs rounded bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50">
-                    🐛 Python Error
+                    🐛 {errorLabel}
                 </button>
             </div>
             {result && (
