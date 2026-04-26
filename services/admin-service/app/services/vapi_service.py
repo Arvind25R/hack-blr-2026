@@ -64,7 +64,8 @@ async def trigger_voice_call(
         "assistantOverrides": {
             "variableValues": {
                 "service_name": service_name,
-                "resolution_steps": suggested_solution
+                "resolution_steps": suggested_solution,
+                "current_problem": error_summary
             }
         }
     }

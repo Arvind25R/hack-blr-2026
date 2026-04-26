@@ -40,6 +40,7 @@ export const simulatePythonError = (name) =>
 export const approveIncident = (id) => fetchJson(`${ADMIN_URL}/approval/approve/${id}`, { method: 'POST' });
 export const rejectIncident = (id) => fetchJson(`${ADMIN_URL}/approval/reject/${id}`, { method: 'POST' });
 export const notifyIncident = (id) => fetchJson(`${ADMIN_URL}/approval/notify/${id}`, { method: 'POST' });
+export const resolveIncident = (id) => fetchJson(`${ADMIN_URL}/approval/resolve/${id}`, { method: 'POST' });
 
 // --- Legacy Simulation ---
 export const triggerProcess = (fail, failAt) => {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { approveIncident, rejectIncident } from '../api/client';
+import { approveIncident, rejectIncident, resolveIncident } from '../api/client';
 
 const STATUS_COLORS = {
     DETECTED: 'bg-red-500',
@@ -7,6 +7,7 @@ const STATUS_COLORS = {
     USER_NOTIFIED: 'bg-yellow-500',
     APPROVED: 'bg-blue-500',
     ACTION_TAKEN: 'bg-indigo-500',
+    TRANSFERRED: 'bg-purple-600',
     RESOLVED: 'bg-green-500',
     REJECTED: 'bg-gray-500',
 };
@@ -18,7 +19,8 @@ export default function IncidentTimeline({ incidents, onAction }) {
         setActing(id);
         try {
             if (action === 'approve') await approveIncident(id);
-            else await rejectIncident(id);
+            else if (action === 'reject') await rejectIncident(id);
+            else if (action === 'resolve') await resolveIncident(id);
             if (onAction) onAction();
         } catch (e) { /* ignore */ }
         setActing(null);
@@ -49,7 +51,17 @@ export default function IncidentTimeline({ incidents, onAction }) {
                     <div className="flex items-center justify-between">
                         <span className="text-xs text-slate-500">{new Date(inc.created_at).toLocaleString()}</span>
 
-                        {inc.error_summary?.includes('APP_NPE_003') && !['RESOLVED', 'REJECTED'].includes(inc.status) && (
+                        {inc.status === 'TRANSFERRED' && (
+                            <button
+                                onClick={() => handle(inc.id, 'resolve')}
+                                disabled={acting === inc.id}
+                                className="px-3 py-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold rounded shadow-lg transition-all"
+                            >
+                                {acting === inc.id ? '...' : 'Mark Resolved'}
+                            </button>
+                        )}
+
+                        {inc.error_summary?.includes('APP_NPE_003') && !['RESOLVED', 'REJECTED', 'TRANSFERRED'].includes(inc.status) && (
                             <span className="text-xs text-yellow-400 italic">⚠️ App bug — no infra action</span>
                         )}
                     </div>

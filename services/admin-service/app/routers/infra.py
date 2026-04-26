@@ -175,18 +175,29 @@ def simulate_high_latency(service_name: str, db: Session = Depends(get_db)) -> d
 
 @router.post("/simulate/python-error/{service_name}")
 def simulate_python_error(service_name: str, db: Session = Depends(get_db)) -> dict:
-    """Inject a single NullPointerException log entry for a service."""
+    """Inject a single simulated application error log entry for a service."""
     import uuid
     from app.models.tables import Log
     trace_id = str(uuid.uuid4())
+    
+    error_type = "NullPointerException"
+    message = f"NullPointerException: {service_name} — object reference is null at processRequest() line 42"
+    
+    if service_name == "service-a":
+        error_type = "BusinessServiceException"
+        message = f"Business service exception: {service_name} rule violation detected in validation logic"
+    elif service_name == "service-c":
+        error_type = "AuthenticationError"
+        message = f"error authenticating the user 401: {service_name} token expired or invalid"
+
     log = Log(
         trace_id=trace_id,
         service_name=service_name,
         status="ERROR",
-        error_type="NullPointerException",
-        message=f"NullPointerException: {service_name} — object reference is null at processRequest() line 42",
+        error_type=error_type,
+        message=message,
         duration_ms=0,
     )
     db.add(log)
     db.commit()
-    return {"success": True, "message": f"Injected 1 NullPointerException error for {service_name}"}
+    return {"success": True, "message": f"Injected 1 {error_type} error for {service_name}"}
